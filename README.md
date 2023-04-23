@@ -78,11 +78,11 @@ public class ChatController {
 ```
 postman示例图
 
-<img src="./doc/postman-001.png" width = "600" alt="图片名称" align=center><br/>
+<img src="./doc/postman-001.png" width = "650" alt="图片名称" align=center><br/>
 
-<img src="./doc/postman-002.png" width = "600" alt="图片名称" align=center><br/>
+<img src="./doc/postman-002.png" width = "650" alt="图片名称" align=center><br/>
 
-<img src="./doc/postman-003.png" width = "600" alt="图片名称" align=center><br/>
+<img src="./doc/postman-003.png" width = "650" alt="图片名称" align=center><br/>
 
 
 ```yaml
