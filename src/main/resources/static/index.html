@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://unpkg.com/vue@3.2.36/dist/vue.global.js"></script>
+    <script src="./js/marked.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="./css/index.css">
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/base16/tomorrow-night.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <!-- import CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <!-- import JavaScript -->
+    <script src="https://unpkg.com/element-plus"></script>
+</head>
+<body>
+<div id="app">
+    <div class="chat-container">
+        <div class="chat-messages">
+            <div class="chat-message-container">
+                <div class="chat-message" v-for="(item,i) in items"
+                     :class="item.user==='bot'? 'chat-reply':'chat-question'">
+                    <div class="chat-message-inner" v-html="item.html? item.html : item.message || ''"></div>
+                </div>
+            </div>
+        </div>
+        <div class="chat-input-container">
+            <el-radio-group v-model="activeTab" style="margin-bottom: 10px;">
+                <el-radio-button label="text">对话</el-radio-button>
+                <el-radio-button label="img">生图</el-radio-button>
+                <el-radio-button label="audio">语音</el-radio-button>
+            </el-radio-group>
+            <div class="chat-inpt">
+                <textarea v-if="activeTab === 'text' || activeTab === 'img'" rows="4" v-model="message"
+                          class="message-input" @keydown.enter="onSendMessage"
+                          :placeholder="activeTab === 'text' ? '请输入您的消息...' : '请输入带【画】关键字的消息...'"></textarea>
+                <el-upload
+                        ref="upload"
+                        v-if="activeTab === 'audio'"
+                        v-model:file-list="fileList"
+                        class="upload-demo"
+                        accept=".mp3"
+                        drag
+                        :data="{user: getUser()}"
+                        with-credentials="true"
+                        :before-upload="handleBeforeUpload"
+                        :action=`/openai/audio/translate/upload`
+                        :on-exceed="handleExceed"
+                >
+                    <el-icon class="el-icon--upload">
+                        <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+                            <path fill="currentColor"
+                                  d="M544 864V672h128L512 480 352 672h128v192H320v-1.6c-5.376.32-10.496 1.6-16 1.6A240 240 0 0 1 64 624c0-123.136 93.12-223.488 212.608-237.248A239.808 239.808 0 0 1 512 192a239.872 239.872 0 0 1 235.456 194.752c119.488 13.76 212.48 114.112 212.48 237.248a240 240 0 0 1-240 240c-5.376 0-10.56-1.28-16-1.6v1.6H544z"></path>
+                        </svg>
+                    </el-icon>
+                    <div class="el-upload__text">
+                        拖拽文件上传 或者 <em>点击上传</em>
+                    </div>
+                    <template #tip>
+                        <div class="el-upload__tip">
+                            请上传1M以内的mp3文件格式
+                        </div>
+                    </template>
+                </el-upload>
+                <el-button type="primary" class="send-btn" @click="onSendMessage" :disabled="generating">发送
+                </el-button>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+<script>
+    marked.setOptions({
+        highlight: function (code, lang) {
+            return hljs.highlightAuto(code).value;
+        }
+    });
+
+    const app = Vue.createApp({
+        data() {
+            return {
+                message: '',
+                items: [
+                    {user: 'bot', messageType: 'TEXT', message: '欢迎来到TicGPT', html: ''},
+                    {
+                        user: 'bot',
+                        messageType: 'TEXT',
+                        message: '请尽量用专业术语详细的描述你的问题，我会回答的更详细也更专业',
+                        html: ''
+                    },
+                    {user: 'bot', messageType: 'TEXT', message: '更多的Prompt会让我更好的为你解答', html: ''},
+                ],
+                generating: false,
+                activeTab: 'text',
+                fileList: [],
+                audioUrl: ''
+            }
+        }, methods: {
+            handleBeforeUpload(file) {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => {
+                    this.audioUrl = reader.result;
+                    console.log('this.audioUrl', this.audioUrl)
+                };
+            },
+            getUuid() {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = (Math.random() * 16) | 0,
+                        v = c == 'x' ? r : (r & 0x3) | 0x8;
+                    return v.toString(16);
+                })
+            },
+            getUser() {
+                return localStorage.getItem("user")
+            },
+            onSendMessage() {
+                console.log('fileList:', this.fileList)
+                let audioUrl = ''
+                let localAudioUrl = '';
+                if ((this.activeTab === 'text' || this.activeTab === 'img') && !this.message) {
+                    alert('请输入内容')
+                    return
+                } else if (this.activeTab === 'audio') {
+                    let fileList = JSON.parse(JSON.stringify(this.fileList))
+                    if (!fileList.length) {
+                        alert('请上传文件')
+                        return;
+                    } else {
+                        let audioInfo = fileList[0].response;
+                        let info = audioInfo.split('\"');
+                        if (info.length > 4) {
+                            audioUrl = info[3]
+                        }
+                    }
+
+                }
+                if (this.generating) {
+                    alert('请等待生成完毕')
+                    return
+                }
+
+                // 对话接口（文字和图片，如果关键字里面带有"画"服务端调的就是生图的api）
+                let sse = null
+                if (this.activeTab === 'audio') {
+                    //将语音转文字的接口，现在是直接在服务端写死的一个mp3文件，会新开一个接口用来上传音频文件
+                    sse = new EventSource(`/openai/audio/translate?user=${this.getUser()}&filePath=${audioUrl}`, {withCredentials: true})
+                } else {
+                    sse = new EventSource(`/openai/chat/stream?user=${this.getUser()}&prompt=${this.message}`, {withCredentials: true})
+                }
+
+                this.generating = true
+                let self = this
+                if (this.activeTab === 'audio') {
+                    let audioHtml = `<audio controls src="${this.audioUrl}"></audio>`;
+                    self.items.push({user: 'user', messageType: 'audio', html: audioHtml})
+                } else {
+                    self.items.push({user: 'user', messageType: 'TEXT', message: self.message})
+                    self.message = ''
+                }
+                sse.addEventListener('open', (function () {
+                    console.log('open')
+                    self.generating = true
+                    self.items.push({user: 'bot', messageType: 'TEXT', message: ''})
+                }))
+                sse.addEventListener('message', function (res) {
+                        console.log(res.data)
+                        let resJson = JSON.parse(res.data)
+                        console.log('resJson', resJson)
+                        if (resJson.messageType === 'TEXT') {
+                            if (resJson.end === true) {
+                                sse.close()
+                                self.generating = false
+                            } else {
+                                let last = self.items[self.items.length - 1];
+                                last.message += resJson.message
+                                let words = last.message.split('');
+                                let html = words.join('')
+                                last.html = marked.marked(html)
+                                //代码部分高亮
+                                document.querySelectorAll('code').forEach((block) => {
+                                    if (!block.classList.contains('hljs')) {
+                                        block.classList.add('hljs')
+                                    }
+                                });
+                            }
+                        } else if (resJson.messageType === 'AUDIO') {
+                            if (resJson.end === true) {
+                                let last = self.items[self.items.length - 1];
+                                last.message += resJson.message
+                                let words = last.message.split('');
+                                let html = words.join('')
+                                last.html = marked.marked(html)
+                                //代码部分高亮
+                                document.querySelectorAll('code').forEach((block) => {
+                                    if (!block.classList.contains('hljs')) {
+                                        block.classList.add('hljs')
+                                    }
+                                });
+                                sse.close()
+                                self.generating = false
+                            }
+                        } else {
+                            let url_html = '';
+                            resJson.message.split(",").forEach(url => {
+                                url_html += `<img class="chat-img" src="${url}"/>`
+                            })
+                            self.items[self.items.length - 1] = {user: 'bot', messageType: 'IMAGE', message: url_html}
+                            sse.close()
+                            self.generating = false
+                        }
+                    }
+                )
+                sse.addEventListener('error', function () {
+                    console.log('error')
+                    self.generating = false
+                    alert('服务器错误，请查看日志')
+                })
+
+            },
+            handleExceed(files) {
+
+            }
+        },
+        mounted() {
+            console.log('mounted')
+            let user = this.getUser();
+            if (!user) {
+                console.log("No user found, creating new user")
+                localStorage.setItem("user", this.getUuid())
+            }
+            console.log('user:', this.getUser())
+
+        }
+    })
+    app.use(ElementPlus);
+    app.mount('#app')
+</script>
+
+</html>
