@@ -32,6 +32,7 @@
 
 
 前端代码简单示例：
+javascript示例
 ```javascript
 // message为需要发送的消息
 const eventSource = new EventSource(`127.0.0.1:8080/openai/chat/stream?prompt=${message}&user=${user}`);
@@ -40,7 +41,7 @@ eventSource.onmessage = function(event) {
     // 略...
 }
 ```
-
+vue示例
 ```vue
 const eventSource = new EventSource(`127.0.0.1:8080/openai/chat/stream?prompt=${message}&user=${user}`);
 
