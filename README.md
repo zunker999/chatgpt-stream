@@ -1,6 +1,6 @@
 ## 🔥🔥🔥手动打造一个属于你自己的ChatGPT🔥🔥🔥
 #### ✨使用万能的SpringBoot轻松对接OpenAi接口使用ChatGpt完成一些基本功能，无第三方jar包；
-#### ✨服务端使用webflux完成流式处理，html压面使用EventSource打到流式效果；
+#### ✨服务端使用webflux完成流式处理，html里面使用EventSource接收数据实现流式效果；
 #### ✨聊天界面如果有代码显示，可自动高亮代码块，其他功能可自己扩展，构建一个属于自己的ChatGPT；
 
 已完成功能
